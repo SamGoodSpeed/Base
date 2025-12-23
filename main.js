@@ -13,6 +13,7 @@ const role_linker = require("./role_link");
 const role_builder = require("./role_builder");
 const roleMiner = require("./role_miner");
 const roleMineralTransfer = require("./role_mineral_transfer");
+const roleRepair = require("./role_repair");
 
 module.exports.loop = function () {
   const startCPU = Game.cpu.getUsed();
@@ -100,49 +101,19 @@ module.exports.loop = function () {
   );
 
   const creepStartCPU = Game.cpu.getUsed();
+
+  // Initialize CPU tracking for roles
+  const roleCPU = {};
+
   for (const name in Game.creeps) {
     const creep = Game.creeps[name];
+    const role = creep.memory.role;
+
+    // Start measuring CPU for this specific creep
+    const creepCpuStart = Game.cpu.getUsed();
 
     if (creep.memory.role === "repairer") {
-      // repairers.push(creep);
-
-      isWorking(creep);
-
-      // 2. действуем по состоянию
-      if (!creep.memory.working) {
-        // 🔄 добываем из хранилища
-        if (
-          creep.room.storage &&
-          creep.room.storage.store[RESOURCE_ENERGY] > 0
-        ) {
-          goPickUp(creep.room.storage, creep, "Spawn1");
-        } else {
-          creep.say("⛔");
-        }
-      } else {
-        // 🛠 чиним
-        const damaged = creep.room.find(FIND_STRUCTURES, {
-          filter: (s) =>
-            s.hits < s.hitsMax &&
-            s.structureType !== STRUCTURE_WALL &&
-            s.structureType !== STRUCTURE_RAMPART,
-        });
-
-        if (damaged.length > 0) {
-          // можно потом сделать сортировку, пока берём первый
-          const target = damaged[0];
-          // тут напрашивается goRepair
-          if (creep.pos.isNearTo(target)) {
-            creep.repair(target);
-          } else {
-            creep.moveTo(target);
-          }
-        } else {
-          // если чинить нечего — можно отправить его помогать апгрейду
-          const controller = creep.room.controller;
-          goUpgrade(controller, creep, "Spawn1");
-        }
-      }
+      roleRepair(creep);
     }
     if (creep.memory.role === "upgrader") {
       // upgraders.push(creep);
@@ -213,7 +184,7 @@ module.exports.loop = function () {
     if (creep.memory.role === "miner__2") {
       roleMiner(
         creep,
-        "6948e339162b12c1b8949d8a",
+        "694a0333fdab2f0e1d94b7c5",
         "5bbcb0549099fc012e63bf76",
         "Spawn1"
       );
@@ -234,6 +205,24 @@ module.exports.loop = function () {
         "Spawn1"
       );
     }
+
+    // Record CPU usage for this role
+    const creepCpuUsed = Game.cpu.getUsed() - creepCpuStart;
+    if (!roleCPU[role]) {
+      roleCPU[role] = { total: 0, count: 0 };
+    }
+    roleCPU[role].total += creepCpuUsed;
+    roleCPU[role].count += 1;
+  }
+
+  // Log role CPU usage summary
+  for (const role in roleCPU) {
+    const avg = roleCPU[role].total / roleCPU[role].count;
+    console.log(
+      `${role}: ${roleCPU[role].total.toFixed(3)} total (${avg.toFixed(
+        3
+      )} avg) [${roleCPU[role].count} creeps]`
+    );
   }
   console.log(
     `Creep processing CPU: ${(Game.cpu.getUsed() - creepStartCPU).toFixed(2)}`

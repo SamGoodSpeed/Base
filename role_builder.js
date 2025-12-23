@@ -35,15 +35,30 @@ module.exports = function role_builder(creep) {
       goBuild(sites[0], creep, "Spawn1");
     } else {
       // Если нет строек, сначала проверяем, есть ли что ремонтировать (кроме стен)
-      const structuresToRepair = creep.room.find(FIND_STRUCTURES, {
-        filter: (structure) => {
-          return (
-            structure.hits < structure.hitsMax &&
-            structure.structureType !== STRUCTURE_WALL &&
-            structure.structureType !== STRUCTURE_RAMPART
-          );
-        },
-      });
+      // Use cached repair targets, refresh every 10 ticks
+      if (
+        !creep.room.memory.repairTargets ||
+        !creep.room.memory.repairLastUpdate ||
+        Game.time - creep.room.memory.repairLastUpdate > 10
+      ) {
+        creep.room.memory.repairTargets = creep.room
+          .find(FIND_STRUCTURES, {
+            filter: (structure) => {
+              return (
+                structure.hits < structure.hitsMax &&
+                structure.structureType !== STRUCTURE_WALL &&
+                structure.structureType !== STRUCTURE_RAMPART
+              );
+            },
+          })
+          .map((s) => s.id);
+        creep.room.memory.repairLastUpdate = Game.time;
+      }
+
+      // Get actual structures from cached IDs, filter out destroyed ones
+      const structuresToRepair = creep.room.memory.repairTargets
+        .map((id) => Game.getObjectById(id))
+        .filter((structure) => structure && structure.hits < structure.hitsMax);
 
       if (structuresToRepair.length > 0) {
         const closestStructure =
